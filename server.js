@@ -1,5 +1,6 @@
 const express=require('express'),http=require('http'),fs=require('fs'),crypto=require('crypto'),{WebSocketServer}=require('ws');
-const {G,daily}=require('./public/games.js');
+const D=fs.existsSync(__dirname+'/public/games.js')?__dirname+'/public':__dirname;
+const {G,daily}=require(D+'/games.js');
 const app=express(),srv=http.createServer(app),wss=new WebSocketServer({server:srv,maxPayload:8192});
 const ADMIN=process.env.ADMIN_KEY,UP=process.env.UPSTASH_REDIS_REST_URL,UT=process.env.UPSTASH_REDIS_REST_TOKEN;
 let db={users:{},tokens:{}},dirty=0;
@@ -68,7 +69,9 @@ wss.on('connection',ws=>{
   else if(m.t=='fdel'){ws.u.friends=ws.u.friends.filter(x=>x!==m.name);touch();friends(ws)}
   else if(m.t=='invite'&&r){const o=online['u:'+String(m.name).toLowerCase()];if(o&&ws.u.friends.includes(o.name))tx(o,{t:'invite',from:ws.name,code:r.code,game:r.game})}
  })});
-app.use(express.static(__dirname+'/public'));app.use(express.urlencoded({extended:false}));
+app.use(express.urlencoded({extended:false}));
+if(D!==__dirname)app.use(express.static(D));
+else{for(const f of['index.html','app.js','games.js'])app.get(f=='index.html'?['/','/index.html']:'/'+f,(q,r)=>r.sendFile(__dirname+'/'+f))}
 app.get('/health',(q,r)=>r.send('ok'));
 const okA=k=>{if(!ADMIN||typeof k!='string'||k.length!=ADMIN.length)return false;return crypto.timingSafeEqual(Buffer.from(k),Buffer.from(ADMIN))};
 app.get('/admin',(q,r)=>{if(!okA(q.query.key))return r.status(403).send('Forbidden. Set the ADMIN_KEY environment variable and open /admin?key=YOUR_KEY');
